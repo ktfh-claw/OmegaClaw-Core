@@ -53,6 +53,7 @@ User-facing MeTTa skills the agent invokes. Each page follows the template **Sig
 - [reference-skills-communication.md](./reference-skills-communication.md) — `send`, `receive`, `websearch`
 - [reference-skills-reasoning.md](./reference-skills-reasoning.md) — `metta` (NAL/PLN invocation surface)
 - [reference-skills-remote-agents.md](./reference-skills-remote-agents.md) — `tavily-search`, `technical-analysis`
+- [reference-skills-arc.md](./reference-skills-arc.md) — constrained ARC task reads and submissions
 
 ### Configuration & Adapters
 

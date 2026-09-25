@@ -14,6 +14,9 @@
     "- Search the web: websearch string"
     "- Search the web using the Tavily Search Agent: tavily-search string"
     "- Get technical analysis for a stock ticker using the Technical Analysis Agent: technical-analysis ticker"
+    ;ARC EVALUATION:
+    "- Read ARC evaluation tasks through the capability proxy: arc-read exact_proxy_url"
+    "- Submit validated ARC outputs and concise reasoning through the capability proxy: arc-submit exact_submission_proxy_url json_body"
     ;CODE EXECUTION:
     "- Execute MeTTa expression: metta sexpression"
     "Example to invoke Non-Axiomatic Logic via MeTTa: "
@@ -56,6 +59,12 @@
 
 (= (websearch $msg)
    (py-call (websearch.search $msg)))
+
+(= (arc-read $url)
+   (py-call (arc_skills.arc_read $url)))
+
+(= (arc-submit $url $body)
+   (py-call (arc_skills.arc_submit $url $body)))
 
 !(import_prolog_functions_from_file (library OmegaClaw-Core ./src/skills.pl) (shell first_char gc read_file_tail))
 

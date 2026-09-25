@@ -23,6 +23,13 @@ _connected = False
 
 _authenticated_user_id = None
 
+_EMPTY_REPLY = "Sorry, I couldn't generate a response."
+_COMMAND_NAMES = {
+    "remember", "query", "episodes", "pin", "shell", "read-file",
+    "write-file", "append-file", "send", "websearch", "tavily-search",
+    "technical-analysis", "arc-read", "arc-submit", "metta",
+}
+
 
 def _set_last(msg):
     global _last_message
@@ -254,3 +261,24 @@ def send_message(text):
         except Exception as exc:
             logger.exception(f"Send failed: {exc}")
             return
+
+
+def send_plaintext_reply(text):
+    """Relay a non-command model response to the active Telegram chat.
+
+    The agent loop calls this only for a newly received, authenticated
+    Telegram message whose model response is not a MeTTa command list.  Keep
+    the command check here too so this helper can never become another command
+    execution path if it is called directly.
+    """
+    reply = str(text)
+    stripped = reply.strip()
+    if stripped.startswith("("):
+        return False
+    first_word = stripped.split(maxsplit=1)[0] if stripped else ""
+    if first_word in _COMMAND_NAMES:
+        return False
+    if not stripped:
+        reply = _EMPTY_REPLY
+    send_message(reply)
+    return True

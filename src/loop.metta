@@ -25,6 +25,9 @@
           (change-state! &prevmsg "")
           (change-state! &lastresults "")
           (change-state! &loops (maxNewInputLoops))
+          (change-state! &telegramFollowup False)
+          ; Initialize this even when an interactive transport suppresses idle inference.
+          (change-state! &nextWakeAt (+ (get_time) (wakeupInterval)))
           (py-call (logger.setup_logging (logConfigPath)))
           ))
 
@@ -43,8 +46,12 @@
                          " toolName4 arg4" (newline)
                          " toolName5 arg5" (newline)
                          " SAVE_PERMANENT_FILES_DIR: " (memoryDirectory)
-                         " LAST_SKILL_USE_RESULTS: you must rectify ALERT_FAILED skill use cases " (last_chars (get-state &lastresults) (maxFeedback)) 
-                         " HISTORY: " (getHistory) 
+                         " LAST_SKILL_USE_RESULTS: you must rectify ALERT_FAILED skill use cases "
+                         (if (and (== (commchannel) telegram) (not (get-state &telegramFollowup)))
+                             "" (last_chars (get-state &lastresults) (maxFeedback)))
+                         " HISTORY: "
+                         (if (and (== (commchannel) telegram) (not (get-state &telegramFollowup)))
+                             "" (getHistory))
                          " TIME: " (get_time_as_string)))))
 
 (= (HandleError $msg $cmd $sexpr)
@@ -69,15 +76,27 @@
                              ($msg (get-state &prevmsg))
                              ($_ (if (and (> $k 1) $msgnew)
                                      (change-state! &loops (maxNewInputLoops)) _)))
-                            (if (> (get-state &loops) 0)
+                            ; Telegram is interactive: idle polls do no inference, while a
+                            ; tool-using turn may continue until the model relays its result.
+                            ; Other transports retain the existing campaign/wake behaviour.
+                            (if (and (> (get-state &loops) 0)
+                                     (or (!= (commchannel) telegram)
+                                         (or $msgnew (get-state &telegramFollowup))))
                                 (let* (($lastmessage (if $msgnew (HUMAN-MSG: $msg) (if (spamShield) " DO NOT RE-SEND OR SPAM!" "")))
                                        ($_ (change-state! &nextWakeAt (+ (get_time) (wakeupInterval))))
                                        ($_ (log INFO "loop" $lastmessage))
                                        ($send (py-str ($prompt :-:-:-: $lastmessage)))
                                        ($_ (log INFO "loop" (CHARS_SENT: (string_length $send) $send)))
                                        ($respi (py-call (lib_llm_ext.callProvider (provider) $send (maxOutputToken) (reasoningMode))))
+                                       ($_ (if (and (== (commchannel) telegram)
+                                                   (or $msgnew (get-state &telegramFollowup)))
+                                               (py-call (telegram.send_plaintext_reply $respi))
+                                               _))
                                        ($resp (py-call (helper.balance_parentheses $respi)))
-                                       ($response (if (== "(" (first_char $resp)) $resp (progn (log INFO "loop" $resp) (repr (REMEMBER:OUTPUT_NOTHING_ELSE_THAN: ((skill arg) ...))))))
+                                       ($response (if (== "(" (first_char $resp))
+                                                      $resp
+                                                      (progn (log INFO "loop" $resp)
+                                                             (repr (REMEMBER:OUTPUT_NOTHING_ELSE_THAN: ((skill arg) ...))))))
                                        ($sexpr (catch (sread $response)))
                                        ($_ (change-state! &error ()))
                                        ($mcerr (HandleError MULTI_COMMAND_FAILURE_NOTHING_WAS_DONE_PLEASE_CORRECT_PARENTHESES_AND_USE_QUOTES_AND_RETRY $response $sexpr))
@@ -85,7 +104,11 @@
                                        ($results (if (== $mcerr $sexpr)
                                                       (RESULTS: (collapse (let $s (superpose $sexpr) (COMMAND_RETURN: ($s (HandleError SINGLE_COMMAND_ERROR_NOTHING_WAS_DONE_PLEASE_FIX_AND_RETRY $s (catch (let $R (eval $s) (py-call (helper.normalize_string $R))))))))))
                                                       (RESULTS: $mcerr)))
-                                       ($_ (log INFO "loop" (RESPONSE: $results))))
+                                       ($_ (log INFO "loop" (RESPONSE: $results)))
+                                       ($_ (if (== (commchannel) telegram)
+                                               (change-state! &telegramFollowup
+                                                   (py-call (helper.response_needs_followup $respi)))
+                                               _)))
                                       (progn (if (or $msgnew  (not (== $sexpr ()))) (addToHistory $msg $response $sexpr $msgnew) _)
                                              (change-state! &lastresults (string-safe (repr $results)))))
                                 (if (> (get_time) (get-state &nextWakeAt))

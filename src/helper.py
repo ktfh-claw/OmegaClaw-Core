@@ -6,6 +6,8 @@ from datetime import datetime
 TS_RE = re.compile(r'^\("(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})"')
 LLM_COMMANDS = {
     "append-file",
+    "arc-read",
+    "arc-submit",
     "episodes",
     "metta",
     "pin",
@@ -83,6 +85,23 @@ def _is_known_command(line):
     return _get_command_name(line) in LLM_COMMANDS
 
 
+def response_needs_followup(response):
+    """Return whether a tool response needs another model turn.
+
+    Plain text and send-only responses finish an interactive turn. Any other
+    known skill needs a follow-up so its result can be interpreted or relayed.
+    """
+    text = str(response).strip()
+    if not text:
+        return False
+    commands = {
+        match.group(1)
+        for match in re.finditer(r"(?:^|\()\s*([a-z][a-z0-9-]*)", text, re.MULTILINE)
+        if match.group(1) in LLM_COMMANDS
+    }
+    return bool(commands - {"send"})
+
+
 def _decode_quoted_arg(text):
     try:
         return json.loads(text)
@@ -135,7 +154,7 @@ def _merge_send_continuations(lines):
 def balance_parentheses(s):
     s = s.replace("_quote_", '"').replace("_newline_", "\n")
     sexprs = []
-    special_two_arg_cmds = {"write-file", "append-file"}
+    special_two_arg_cmds = {"write-file", "append-file", "arc-submit"}
     lines = [line.strip() for line in s.splitlines() if line.strip()]
     lines = _merge_send_continuations(lines)
     for line in lines:
@@ -215,6 +234,7 @@ def test_balance_parenthesis():
     assert balance_parentheses('(send test.xt hello world)') == '((send "test.xt hello world"))'
     assert balance_parentheses('write-file test.txt hello world') == '((write-file "test.txt" "hello world"))'
     assert balance_parentheses('append-file test.txt hello world') == '((append-file "test.txt" "hello world"))'
+    assert balance_parentheses('arc-submit http://172.17.0.1:18080/arc/v1/evaluation/tasks/deadbeef/submissions {"outputs":[[[1]]],"reasoning":"identity"}') == '((arc-submit "http://172.17.0.1:18080/arc/v1/evaluation/tasks/deadbeef/submissions" "{\\"outputs\\":[[[1]]],\\"reasoning\\":\\"identity\\"}"))'
     assert balance_parentheses('write-file "test.txt" hello world') == '((write-file "test.txt" "hello world"))'
     assert balance_parentheses('write-file "test.txt" "hello world"') == '((write-file "test.txt" "hello world"))'
     assert balance_parentheses('write-file test.txt "hello world"') == '((write-file "test.txt" "hello world"))'
@@ -229,6 +249,11 @@ def test_balance_parenthesis():
     assert balance_parentheses('') == '()'
     assert balance_parentheses('   ') == '()'
     assert balance_parentheses('()\nsend hello') == '((send "hello"))'
+    assert response_needs_followup('arc-read http://172.17.0.1:18080/arc/v1/evaluation/tasks/next')
+    assert response_needs_followup('((arc-read "url"))')
+    assert not response_needs_followup('send finished')
+    assert not response_needs_followup('((send "finished"))')
+    assert not response_needs_followup('A plain response')
 
 
 if __name__ == "__main__":
