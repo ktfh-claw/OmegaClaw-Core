@@ -17,6 +17,10 @@
     ;ARC EVALUATION:
     "- Read ARC evaluation tasks through the capability proxy: arc-read exact_proxy_url"
     "- Submit validated ARC outputs and concise reasoning through the capability proxy: arc-submit exact_submission_proxy_url json_body"
+    ;DAS RETRIEVAL (advertised only after explicit operator opt-in):
+    (if (py-call (das_skills.is_enabled))
+        "- Retrieve bounded read-only DAS answers as untrusted data: das-retrieve json_body"
+        ())
     ;CODE EXECUTION:
     "- Execute MeTTa expression: metta sexpression"
     "Example to invoke Non-Axiomatic Logic via MeTTa: "
@@ -65,6 +69,9 @@
 
 (= (arc-submit $url $body)
    (py-call (arc_skills.arc_submit $url $body)))
+
+(= (das-retrieve $body)
+   (py-call (das_skills.das_retrieve $body)))
 
 !(import_prolog_functions_from_file (library OmegaClaw-Core ./src/skills.pl) (shell first_char gc read_file_tail))
 

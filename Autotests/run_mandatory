@@ -32,5 +32,6 @@ mock/test_transition_pin_to_remember_mock.py
 mock_websocket/test_wschat_unit.py
 test_websearch_smoke.py
 test_arc_skills.py
+test_das_skills.py
 test_openrouter_free_provider.py
 test_telegram_plaintext_reply.py

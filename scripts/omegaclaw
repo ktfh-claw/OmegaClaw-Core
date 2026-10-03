@@ -601,6 +601,8 @@ start() {
             -e OMEGACLAW_AUTH_SECRET="$OMEGACLAW_AUTH_SECRET"
             -e LLM_SERVER_LOCAL_URL="$llm_server_local_url"
             -e IMPORT_KB_ON_START="${IMPORT_KB_ON_START:-0}"
+            -e OMEGA_DAS_ENABLED="${OMEGA_DAS_ENABLED:-0}"
+            -e OMEGA_DAS_PROXY_ORIGIN="${OMEGA_DAS_PROXY_ORIGIN:-http://read-proxy:8080}"
             "$image"
             "commchannel=${commchannel}"
             "provider=${provider}"

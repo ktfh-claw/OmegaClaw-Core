@@ -1,5 +1,6 @@
 from collections import deque
 import json
+import os
 import re
 from datetime import datetime
 
@@ -21,6 +22,8 @@ LLM_COMMANDS = {
     "technical-analysis",
     "write-file",
 }
+if os.environ.get("OMEGA_DAS_ENABLED", "") == "1":
+    LLM_COMMANDS.add("das-retrieve")
 
 
 def extract_timestamp(line):
