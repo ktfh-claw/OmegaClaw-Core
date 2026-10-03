@@ -3,7 +3,9 @@ set -euo pipefail
 
 cd /PeTTa
 
-su www-data -s /bin/sh -c "sh /opt/nginx/nginx.sh"
+# nginx master must retain access to the container's stdout/stderr descriptors.
+# Its worker is explicitly dropped to www-data in nginx.conf.template.
+sh /opt/nginx/nginx.sh
 
 GATEWAY_URL="http://localhost:8080"
 EMBEDDING_PROVIDER="${EMBEDDING_PROVIDER:-Local}"
