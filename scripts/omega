@@ -813,6 +813,8 @@ start() {
             -e "OMEGA_OPENCLAW_TOKEN=${OMEGA_OPENCLAW_TOKEN:-}"
             -e OMEGA_AUTH_SECRET="$OMEGA_AUTH_SECRET"
             -e IMPORT_KB_ON_START="${IMPORT_KB_ON_START:-0}"
+            -e OMEGA_DAS_ENABLED="${OMEGA_DAS_ENABLED:-0}"
+            -e OMEGA_DAS_PROXY_ORIGIN="${OMEGA_DAS_PROXY_ORIGIN:-http://read-proxy:8080}"
             ${memory_import_env[@]+"${memory_import_env[@]}"}
             "$image"
             "commchannel=${commchannel}"

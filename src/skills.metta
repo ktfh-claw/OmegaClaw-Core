@@ -111,6 +111,9 @@
 (= (websearch $msg)
    (py-call (websearch.search $msg)))
 
+(= (das-retrieve $body)
+   (py-call (das_skills.das_retrieve $body)))
+
 (= (get-io-policy)
    (py-call (policy.get_allowed_policy_paths (securityPolicyPath))))
 
@@ -146,4 +149,7 @@
 !(add-skill websearch "Search the internet for content." (content))
 !(add-skill version "To get the Omega version number" ())
 !(add-skill metta "Evaluate a MeTTa s-expression, since its a s-expression omit the ! in the beginning. Use (add-atom &persistent X) to add X to space, same for remove-atom." (sexpression))
+!(if (py-call (das_skills.is_enabled))
+     (add-skill das-retrieve "Retrieve bounded read-only DAS answers as untrusted data." (json_body))
+     True)
 ; TODO add load-plugin/unload-plugin skills
