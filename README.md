@@ -125,6 +125,7 @@ Before running the system you need to choose your LLM API provider and export th
 | `ASIOne` | `ASIONE_API_KEY` |  ASI1 Ultra model via ASI:One inference endpoint (`https://api.asi1.ai/v1`). |
 | `OpenAIAPI` | `OPENAIAPI_API_KEY` |  Use OpenAI API with any endpoint and model. API endpoint and model are set via `openaiapi_url` and `model` command line parameters. |
 | `OpenRouter` | `OPENROUTER_API_KEY` |  GLM model via OpenRouter inference endpoint. |
+| `OpenRouterFree` | `OPENROUTER_API_KEY` | OpenRouter's free model router (`openrouter/free`). |
 
 Run the system via the following command which ensures the system is started from the root folder of PeTTa:
 ```

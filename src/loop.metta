@@ -19,6 +19,9 @@
                (joinPath ((py-call (helper.projectRootDirectory)) memory)))
           (change-state! &prevmsg "")
           (change-state! &loops (maxNewInputLoops))
+          (change-state! &telegramFollowup False)
+          ; Initialize this even when an interactive transport suppresses idle inference.
+          (change-state! &nextWakeAt (+ (get_time) (wakeupInterval)))
           (messagesClear)
           ))
 
@@ -31,7 +34,9 @@
    (string-safe (py-str ("PROMPT: " (getPrompt (provider)) " SKILLS: " (getSkillRules)
                          (newline) (getPromptExtensions) (newline)
                          " SAVE_PERMANENT_FILES_DIR: " (memoryDirectory)
-                         " HISTORY: " (getHistory) 
+                         " HISTORY: "
+                         (if (and (== (commchannel) telegram) (not (get-state &telegramFollowup)))
+                             "" (getHistory))
                          " TIME: " (get_time_as_string)))))
 
 (= (addTelegramPromptExtension)
@@ -96,7 +101,12 @@
                              ($msg (get-state &prevmsg))
                              ($_ (if (and (> $k 1) $msgnew)
                                      (change-state! &loops (maxNewInputLoops)) _)))
-                            (if (> (get-state &loops) 0)
+                            ; Telegram is interactive: idle polls do no inference, while a
+                            ; tool-using turn may continue until the model relays its result.
+                            ; Other transports retain the existing campaign/wake behaviour.
+                            (if (and (> (get-state &loops) 0)
+                                     (or (!= (commchannel) telegram)
+                                         (or $msgnew (get-state &telegramFollowup))))
                                 (let* (($lastmessage (if $msgnew $msg "[NO NEW USER INPUT. CONTINUE AUTONOMOUS WORK. DO NOT REPEAT THE PREVIOUS RESPONSE. ONLY USE send FOR GENUINELY NEW INFORMATION OR WHEN USER INPUT IS NEEDED.]"))
                                        ($_ (change-state! &nextWakeAt (+ (get_time) (wakeupInterval))))
                                        ($_ (log INFO "loop" $lastmessage))
@@ -105,6 +115,10 @@
                                        ($request (llmRequest $system (messagesGet) (maxOutputToken) (reasoningMode) (collectTools)))
                                        ($_ (log INFO "loop" (REQUEST: (py-str ($request)))))
                                        ($response (llmProviderChat $request))
+                                       ($_ (if (== (commchannel) telegram)
+                                               (change-state! &telegramFollowup
+                                                   (llmResponseNeedsFollowup $response))
+                                               _))
                                        ($_ (log INFO "loop" (RESPONSE: (py-str ($response)))))
                                        ($respstr (py-call (providers.llmResponseToSExpr $response)))
                                        ($resp (catch (sread $respstr)))

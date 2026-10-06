@@ -22,6 +22,9 @@
 (= (llmResponseCalls $response)
    (py-call (providers.llmResponseCalls $response)))
 
+(= (llmResponseNeedsFollowup $response)
+   (py-call (providers.llmResponseNeedsFollowup $response)))
+
 (= (llmToolCallGetName $call)
    (py-call (providers.llmToolCallGetName $call)))
 

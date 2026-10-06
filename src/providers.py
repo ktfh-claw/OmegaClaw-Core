@@ -297,6 +297,10 @@ def llmResponseIsEmpty(response: LLMResponse):
 def llmResponseCalls(response: LLMResponse):
     return response.calls
 
+def llmResponseNeedsFollowup(response: LLMResponse):
+    """Return whether a tool-using turn needs another model pass."""
+    return any(call.name != "send" for call in response.calls)
+
 def llmResponseIsError(response: LLMResponse):
     return bool(response.error)
 

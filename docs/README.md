@@ -51,6 +51,7 @@ User-facing MeTTa skills the agent invokes. Each page follows the template **Sig
 - [reference-skills-io.md](./reference-skills-io.md) — `shell`, `read-file`, `write-file`, `write-file-b64`, `append-file`
 - [reference-skills-communication.md](./reference-skills-communication.md) — `send`, `receive`, `websearch`
 - [reference-skills-reasoning.md](./reference-skills-reasoning.md) — `metta` (NAL/PLN invocation surface)
+- [reference-skills-arc.md](./reference-skills-arc.md) — constrained ARC task reads and submissions
 
 ### Configuration & Adapters
 

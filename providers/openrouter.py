@@ -9,13 +9,15 @@ logger = get_logger(__name__)
 
 class OpenRouterProvider(providers.LLMProvider):
 
-    def __init__(self):
+    def __init__(self, name="OpenRouter", default_model="z-ai/glm-5.2"):
         super().__init__()
+        self.name = name
+        self.default_model = default_model
 
     def start(self) -> None:
-        openrouter_model = config_get_by_key("openrouter_model", "z-ai/glm-5.2")
+        openrouter_model = config_get_by_key("openrouter_model", self.default_model)
         model = config_get_by_key("model", openrouter_model)
-        self.delegate = OpenRouterProviderImpl("OpenRouter", "OPENROUTER_API_KEY",
+        self.delegate = OpenRouterProviderImpl(self.name, "OPENROUTER_API_KEY",
                                                model, "https://openrouter.ai/api/v1")
 
     def stop(self) -> None:
@@ -26,6 +28,9 @@ class OpenRouterProvider(providers.LLMProvider):
 
 def loadOmegaPlugin():
     providers.registerLLMProvider("OpenRouter", OpenRouterProvider())
+    providers.registerLLMProvider(
+        "OpenRouterFree", OpenRouterProvider("OpenRouterFree", "openrouter/free")
+    )
 
 class OpenRouterProviderImpl(llm.AIProvider):
     """OpenRouter provider with reasoning mode enabled (reasoning tokens excluded from the response)."""

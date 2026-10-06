@@ -14,6 +14,13 @@ from config import config_get_by_key
 
 logger = get_logger(__name__)
 
+_EMPTY_REPLY = "Sorry, I couldn't generate a response."
+_COMMAND_NAMES = {
+    "remember", "query", "episodes", "pin", "shell", "read-file",
+    "write-file", "append-file", "send", "websearch", "tavily-search",
+    "technical-analysis", "arc-read", "arc-submit", "das-retrieve", "metta",
+}
+
 _running = False
 _msg_lock = threading.Lock()
 _state_lock = threading.Lock()
@@ -526,6 +533,21 @@ def start_telegram(chat_id="", allowed_chat_ids="", poll_timeout=20):
 def stop_telegram():
     global _running
     _running = False
+
+
+def send_plaintext_reply(text):
+    """Relay a non-command model response to the active Telegram chat."""
+    reply = str(text)
+    stripped = reply.strip()
+    if stripped.startswith("("):
+        return False
+    first_word = stripped.split(maxsplit=1)[0] if stripped else ""
+    if first_word in _COMMAND_NAMES:
+        return False
+    if not stripped:
+        reply = _EMPTY_REPLY
+    send_message(reply)
+    return True
 
 
 class TelegramChannel(channels.CommChannel):
