@@ -82,6 +82,11 @@
    (let $episodic (get-state &messages_all)
      (change-state! &messages_all (py-call (utils.listAppend $episodic $item)))))
 
+(= (telegramInferenceReady $msgnew)
+   (or $msgnew
+       (or (get-state &telegramFollowup)
+           (get-state &autonomousWake))))
+
 (= (omega)
    (omega 1))
 (= (omega $k)
@@ -110,9 +115,7 @@
                             ; may start a turn, while tool followups continue until relayed.
                             (if (and (> (get-state &loops) 0)
                                      (or (!= (commchannel) telegram)
-                                         (or $msgnew
-                                             (get-state &telegramFollowup)
-                                             (get-state &autonomousWake))))
+                                         (telegramInferenceReady $msgnew)))
                                 (let* (($lastmessage (if $msgnew $msg "[NO NEW USER INPUT. CONTINUE AUTONOMOUS WORK. DO NOT REPEAT THE PREVIOUS RESPONSE. ONLY USE send FOR GENUINELY NEW INFORMATION OR WHEN USER INPUT IS NEEDED.]"))
                                        ($_ (change-state! &nextWakeAt (+ (get_time) (wakeupInterval))))
                                        ($_ (log INFO "loop" $lastmessage))
@@ -146,12 +149,13 @@
                                                    (quote $s)))))))
                                        ($_ (if (or $msgnew (not (== $sexpr ())))
                                                (addToHistory $msg $sexpr $msgnew) _))
-                                       (change-state! &autonomousWake False))
+                                       ($_ (change-state! &autonomousWake False))
+                                       True)
                                 (if (> (get_time) (get-state &nextWakeAt))
-                                    (progn (change-state! &loops (+ 1 (maxWakeLoops)))
-                                           (if (and (== (commchannel) telegram)
-                                                    (telegramAutonomousWake))
-                                               (change-state! &autonomousWake True) _)) _)))
+                                    (let $_ (change-state! &loops (+ 1 (maxWakeLoops)))
+                                         (if (and (== (commchannel) telegram)
+                                                  (telegramAutonomousWake))
+                                             (change-state! &autonomousWake True) _)) _)))
                       (sleep (sleepInterval))
                       (cut)
                       (gc)

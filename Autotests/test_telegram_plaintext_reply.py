@@ -43,7 +43,8 @@ def test_loop_allows_structured_followup_or_opt_in_autonomous_wake():
     loop = (ROOT / "src" / "loop.metta").read_text()
 
     assert "(configure telegramAutonomousWake False)" in loop
-    assert "(get-state &telegramFollowup)\n                                             (get-state &autonomousWake)" in loop
+    assert "(telegramInferenceReady $msgnew)" in loop
+    assert "(or $msgnew\n       (or (get-state &telegramFollowup)\n           (get-state &autonomousWake)))" in loop
     assert "(llmResponseNeedsFollowup $response)" in loop
     assert "telegram.send_plaintext_reply" not in loop
 
@@ -63,9 +64,9 @@ def test_telegram_autonomous_turn_has_history_and_resets_wake_flag():
 
     context_guard = "(not (or (get-state &telegramFollowup)\n                                           (get-state &autonomousWake)))"
     history_update = "(addToHistory $msg $sexpr $msgnew)"
-    reset_wake = "(change-state! &autonomousWake False)"
+    reset_wake = "($_ (change-state! &autonomousWake False))"
     assert context_guard in loop
-    assert loop.count(reset_wake) == 2
+    assert loop.count("(change-state! &autonomousWake False)") == 2
     assert loop.index(history_update) < loop.rindex(reset_wake)
 
 
