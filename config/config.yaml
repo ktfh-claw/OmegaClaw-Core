@@ -92,6 +92,9 @@ TG_CHAT_ID: ""
 TG_ALLOWED_CHAT_IDS: ""
 # Telegram polling timeout in seconds.
 TG_POLL_TIMEOUT: 20
+# Allow scheduled wake-ups to run autonomous turns on Telegram. Disabled keeps
+# Telegram message-driven except for tool-call followups.
+telegramAutonomousWake: false
 
 # Websocket
 # Enabled with commchannel: websocket

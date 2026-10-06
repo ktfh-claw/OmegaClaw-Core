@@ -5,6 +5,7 @@
 (= (maxOutputToken) (empty))
 (= (reasoningMode) (empty))
 (= (wakeupInterval) (empty))
+(= (telegramAutonomousWake) (empty))
 (= (memoryDirectory) (empty))
 
 (= (initLoop)
@@ -15,11 +16,13 @@
           (configure maxOutputToken 6000)
           (configure reasoningMode medium)
           (configure wakeupInterval 600) ;600=10 minutes
+          (configure telegramAutonomousWake False)
           (configure memoryDirectory
                (joinPath ((py-call (helper.projectRootDirectory)) memory)))
           (change-state! &prevmsg "")
           (change-state! &loops (maxNewInputLoops))
           (change-state! &telegramFollowup False)
+          (change-state! &autonomousWake False)
           ; Initialize this even when an interactive transport suppresses idle inference.
           (change-state! &nextWakeAt (+ (get_time) (wakeupInterval)))
           (messagesClear)
@@ -35,7 +38,9 @@
                          (newline) (getPromptExtensions) (newline)
                          " SAVE_PERMANENT_FILES_DIR: " (memoryDirectory)
                          " HISTORY: "
-                         (if (and (== (commchannel) telegram) (not (get-state &telegramFollowup)))
+                         (if (and (== (commchannel) telegram)
+                                  (not (or (get-state &telegramFollowup)
+                                           (get-state &autonomousWake))))
                              "" (getHistory))
                          " TIME: " (get_time_as_string)))))
 
@@ -101,12 +106,13 @@
                              ($msg (get-state &prevmsg))
                              ($_ (if (and (> $k 1) $msgnew)
                                      (change-state! &loops (maxNewInputLoops)) _)))
-                            ; Telegram is interactive: idle polls do no inference, while a
-                            ; tool-using turn may continue until the model relays its result.
-                            ; Other transports retain the existing campaign/wake behaviour.
+                            ; Telegram is interactive by default. An opt-in autonomous wake
+                            ; may start a turn, while tool followups continue until relayed.
                             (if (and (> (get-state &loops) 0)
                                      (or (!= (commchannel) telegram)
-                                         (or $msgnew (get-state &telegramFollowup))))
+                                         (or $msgnew
+                                             (get-state &telegramFollowup)
+                                             (get-state &autonomousWake))))
                                 (let* (($lastmessage (if $msgnew $msg "[NO NEW USER INPUT. CONTINUE AUTONOMOUS WORK. DO NOT REPEAT THE PREVIOUS RESPONSE. ONLY USE send FOR GENUINELY NEW INFORMATION OR WHEN USER INPUT IS NEEDED.]"))
                                        ($_ (change-state! &nextWakeAt (+ (get_time) (wakeupInterval))))
                                        ($_ (log INFO "loop" $lastmessage))
@@ -138,9 +144,14 @@
                                                    ($_ (log INFO "loop" (COMMAND_RETURN: ($s $result))))
                                                    (messagesAppend (llmToolCallResponseMessage role "tool" callid $callid content (last_chars $result (maxFeedback))))
                                                    (quote $s)))))))
-                                       (if (or $msgnew  (not (== $sexpr ()))) (addToHistory $msg $sexpr $msgnew) _))
+                                       ($_ (if (or $msgnew (not (== $sexpr ())))
+                                               (addToHistory $msg $sexpr $msgnew) _))
+                                       (change-state! &autonomousWake False))
                                 (if (> (get_time) (get-state &nextWakeAt))
-                                    (change-state! &loops (+ 1 (maxWakeLoops))) _)))
+                                    (progn (change-state! &loops (+ 1 (maxWakeLoops)))
+                                           (if (and (== (commchannel) telegram)
+                                                    (telegramAutonomousWake))
+                                               (change-state! &autonomousWake True) _)) _)))
                       (sleep (sleepInterval))
                       (cut)
                       (gc)

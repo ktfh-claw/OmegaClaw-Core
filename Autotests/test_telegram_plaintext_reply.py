@@ -39,28 +39,34 @@ def test_command_expression_is_never_relayed_by_fallback(monkeypatch):
     assert sent == []
 
 
-def test_loop_limits_structured_tool_followup_to_active_telegram_turn():
+def test_loop_allows_structured_followup_or_opt_in_autonomous_wake():
     loop = (ROOT / "src" / "loop.metta").read_text()
 
-    assert "(or $msgnew (get-state &telegramFollowup))" in loop
+    assert "(configure telegramAutonomousWake False)" in loop
+    assert "(get-state &telegramFollowup)\n                                             (get-state &autonomousWake)" in loop
     assert "(llmResponseNeedsFollowup $response)" in loop
     assert "telegram.send_plaintext_reply" not in loop
 
 
-def test_telegram_loop_invokes_model_only_for_input_or_tool_followup():
+def test_telegram_timer_arms_an_opt_in_autonomous_turn():
     loop = (ROOT / "src" / "loop.metta").read_text()
 
-    inference_gate = "(or $msgnew (get-state &telegramFollowup))"
-    assert inference_gate in loop
-    assert loop.index(inference_gate) < loop.index("(llmProviderChat $request)")
+    config_guard = "(telegramAutonomousWake))"
+    arm_wake = "(change-state! &autonomousWake True)"
+    assert config_guard in loop
+    assert arm_wake in loop
+    assert loop.index(config_guard) < loop.index(arm_wake)
 
 
-def test_telegram_context_is_exposed_only_during_tool_followup():
+def test_telegram_autonomous_turn_has_history_and_resets_wake_flag():
     loop = (ROOT / "src" / "loop.metta").read_text()
 
-    guard = '(and (== (commchannel) telegram) (not (get-state &telegramFollowup)))'
-    assert loop.count(guard) == 1
-    assert "(llmResponseNeedsFollowup $response)" in loop
+    context_guard = "(not (or (get-state &telegramFollowup)\n                                           (get-state &autonomousWake)))"
+    history_update = "(addToHistory $msg $sexpr $msgnew)"
+    reset_wake = "(change-state! &autonomousWake False)"
+    assert context_guard in loop
+    assert loop.count(reset_wake) == 2
+    assert loop.index(history_update) < loop.rindex(reset_wake)
 
 
 def test_prompt_requires_immediate_response_without_forced_cycles():
