@@ -139,11 +139,18 @@ class AIProvider(AbstractAIProvider):
         if self._client is None:
             self._client = self._create_client()
 
+    def _proxy_route_name(self) -> str:
+        """Gateway route used by this provider.
+
+        Provider aliases can override this without duplicating client setup.
+        """
+        return self._name.lower()
+
     def _create_client(self) -> Optional[openai.OpenAI]:
         """Create OpenAI client from environment."""
         proxy_url = config_get_by_key("GATEWAY_URL")
         if proxy_url:
-            prefix = self._name.lower()
+            prefix = self._proxy_route_name()
             base_url = f"{proxy_url.rstrip('/')}/{prefix}/"
             logger.info(f"[AIProvider._create_client]: Connecting via proxy: {base_url}")
             return openai.OpenAI(
@@ -273,5 +280,4 @@ def useLocalEmbedding(atom):
         atom,
         normalize_embeddings=True
     ).tolist()
-
 

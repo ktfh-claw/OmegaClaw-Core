@@ -4,9 +4,6 @@ import types
 
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "providers"))
-sys.path.insert(0, str(ROOT / "src"))
-sys.path.insert(0, str(ROOT))
 
 try:
     import openai  # noqa: F401
@@ -14,6 +11,10 @@ except ModuleNotFoundError:
     openai_stub = types.ModuleType("openai")
     openai_stub.OpenAI = object
     sys.modules["openai"] = openai_stub
+
+sys.path.insert(0, str(ROOT / "providers"))
+sys.path.insert(0, str(ROOT / "src"))
+sys.path.insert(0, str(ROOT))
 
 import openrouter  # noqa: E402
 
@@ -40,7 +41,12 @@ def test_openrouter_free_uses_existing_openrouter_proxy_route(monkeypatch):
             captured.update(kwargs)
 
     monkeypatch.setattr(openrouter.llm.openai, "OpenAI", FakeClient)
-    monkeypatch.setenv("GATEWAY_URL", "http://localhost:8080/")
+    monkeypatch.setattr(
+        openrouter.llm, "config_get_by_key",
+        lambda key, default=None: (
+            "http://localhost:8080/" if key == "GATEWAY_URL" else default
+        ),
+    )
 
     free._create_client()
 

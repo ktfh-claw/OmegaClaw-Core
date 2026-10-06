@@ -35,6 +35,9 @@ def loadOmegaPlugin():
 class OpenRouterProviderImpl(llm.AIProvider):
     """OpenRouter provider with reasoning mode enabled (reasoning tokens excluded from the response)."""
 
+    def _proxy_route_name(self) -> str:
+        return "openrouter"
+
     def _openrouter_extra_body(self, request: providers.LLMRequest) -> dict[str, Any]:
         is_anthropic = self._model_name.lower().startswith("anthropic/")
         sysmsg = request.messages[0].content

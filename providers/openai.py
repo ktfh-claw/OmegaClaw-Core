@@ -112,10 +112,7 @@ class OpenAIProviderImpl(llm.AIProvider):
 
         response =  LLMResponse()
         output = raw.output
-        if not output:
-            return response
-
-        for item in output:
+        for item in output or []:
             if item.type != "function_call":
                 continue
             tool_call = item
@@ -156,4 +153,3 @@ class OpenAIProviderImpl(llm.AIProvider):
             error = f"Exception while communicating with LLM: {e}"
             logger.exception(f"[AIProvider.chat]: {error}")
             return LLMResponse().with_error(error)
-

@@ -39,29 +39,28 @@ def test_command_expression_is_never_relayed_by_fallback(monkeypatch):
     assert sent == []
 
 
-def test_loop_limits_fallback_to_active_telegram_turn():
+def test_loop_limits_structured_tool_followup_to_active_telegram_turn():
     loop = (ROOT / "src" / "loop.metta").read_text()
 
     assert "(or $msgnew (get-state &telegramFollowup))" in loop
-    assert "(telegram.send_plaintext_reply $respi)" in loop
+    assert "(llmResponseNeedsFollowup $response)" in loop
+    assert "telegram.send_plaintext_reply" not in loop
 
 
 def test_telegram_loop_invokes_model_only_for_input_or_tool_followup():
     loop = (ROOT / "src" / "loop.metta").read_text()
 
-    inference_gate = """(and (> (get-state &loops) 0)
-                                     (or (!= (commchannel) telegram)
-                                         (or $msgnew (get-state &telegramFollowup))))"""
+    inference_gate = "(or $msgnew (get-state &telegramFollowup))"
     assert inference_gate in loop
-    assert loop.index(inference_gate) < loop.index("(lib_llm_ext.callProvider")
+    assert loop.index(inference_gate) < loop.index("(llmProviderChat $request)")
 
 
 def test_telegram_context_is_exposed_only_during_tool_followup():
     loop = (ROOT / "src" / "loop.metta").read_text()
 
     guard = '(and (== (commchannel) telegram) (not (get-state &telegramFollowup)))'
-    assert loop.count(guard) == 2
-    assert "(helper.response_needs_followup $respi)" in loop
+    assert loop.count(guard) == 1
+    assert "(llmResponseNeedsFollowup $response)" in loop
 
 
 def test_prompt_requires_immediate_response_without_forced_cycles():

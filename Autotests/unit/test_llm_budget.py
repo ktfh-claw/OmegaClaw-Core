@@ -23,14 +23,16 @@ def _load_modules():
     config_stub = types.ModuleType("config")
     config_stub.config_get_by_key = lambda key, default=None: default
 
-    providers_stub = types.ModuleType("providers")
-    providers_stub.LLMProvider = object
-    providers_stub.registerLLMProvider = lambda name, provider: None
+    providers_spec = importlib.util.spec_from_file_location(
+        "providers", os.path.join(_REPO_ROOT, "src", "providers.py")
+    )
+    providers_stub = importlib.util.module_from_spec(providers_spec)
 
     stubs = {"openai": openai_stub, "config": config_stub, "providers": providers_stub}
     saved = {name: sys.modules.get(name) for name in list(stubs) + ["lib_llm_ext"]}
     sys.modules.update(stubs)
     try:
+        providers_spec.loader.exec_module(providers_stub)
         loaded = {}
         for name in ("lib_llm_ext", "openrouter", "openai_provider", "asione"):
             file_name = "openai.py" if name == "openai_provider" else f"{name}.py"
@@ -55,13 +57,38 @@ openrouter = _MODULES["openrouter"]
 openai_provider = _MODULES["openai_provider"]
 asione = _MODULES["asione"]
 
-PROMPT = "You are an agent. :-:-:-: Write an empty line to /tmp/paths.txt"
+def request(max_tokens=6000, reasoning="medium"):
+    return (_MODULES["lib_llm_ext"].LLMRequest()
+            .with_messages([
+                _MODULES["lib_llm_ext"].LLMMessage()
+                .with_role("user")
+                .with_content("Write an empty line to /tmp/paths.txt")
+            ])
+            .with_max_tokens(max_tokens)
+            .with_reasoning_mode(reasoning)
+            .with_tools([
+                _MODULES["lib_llm_ext"].LLMTool()
+                .with_name("send")
+                .with_description("Send a message")
+                .with_parameters([
+                    _MODULES["lib_llm_ext"].LLMToolParameter()
+                    .with_name("content")
+                ])
+            ]))
 
 
 def chat_response(content, finish_reason, completion_tokens=6000, reasoning_tokens=6000):
+    tool_calls = []
+    if content is not None:
+        tool_calls.append(NS(
+            id="call-1",
+            function=NS(name="send", arguments=json.dumps({"content": content})),
+        ))
     return NS(
+        id="response-1",
         choices=[NS(index=0, finish_reason=finish_reason,
-                    message=NS(role="assistant", content=content))],
+                    message=NS(role="assistant", content=None,
+                               tool_calls=tool_calls))],
         usage=NS(prompt_tokens=2900, completion_tokens=completion_tokens, total_tokens=2900 + completion_tokens,
                  prompt_tokens_details=NS(cached_tokens=2600),
                  completion_tokens_details=NS(reasoning_tokens=reasoning_tokens)),
@@ -69,7 +96,13 @@ def chat_response(content, finish_reason, completion_tokens=6000, reasoning_toke
 
 
 def responses_response(output_text, status, reason=None, output_tokens=120, reasoning_tokens=120):
+    output = []
+    if output_text is not None:
+        output.append(NS(type="function_call", id="call-1", name="send",
+                         arguments=json.dumps({"content": output_text})))
     return NS(
+        id="response-1",
+        output=output,
         output_text=output_text,
         status=status,
         incomplete_details=NS(reason=reason) if reason else None,
@@ -113,10 +146,10 @@ def make_asione(create):
 
 
 def sent_text(reply):
-    """Text of a single `(send "...")` command, or None if reply is not one."""
-    if not (reply.startswith("(send ") and reply.endswith(")")):
+    """Content of a single structured `send` tool call, or None."""
+    if len(reply.calls) != 1 or reply.calls[0].name != "send":
         return None
-    return json.loads(reply[len("(send "):-1])
+    return reply.calls[0].arguments.get("content")
 
 
 def swallowed_errors(caplog):
@@ -124,36 +157,36 @@ def swallowed_errors(caplog):
 
 
 def test_normal_reply_is_returned_after_a_single_call():
-    create = FakeCreate(chat_response('(send "hi")', "stop", completion_tokens=40, reasoning_tokens=30))
-    assert make_openrouter(create).chat(PROMPT) == '(send "hi")'
+    create = FakeCreate(chat_response("hi", "stop", completion_tokens=40, reasoning_tokens=30))
+    assert sent_text(make_openrouter(create).chat(request())) == "hi"
     assert len(create.calls) == 1
 
 
 def test_empty_reply_out_of_budget_is_explained():
-    create = FakeCreate(chat_response("", "length"))
-    assert sent_text(make_openrouter(create).chat(PROMPT)) == llm.LLM_EMPTY_RESPONSE_MESSAGE
+    create = FakeCreate(chat_response(None, "length"))
+    assert sent_text(make_openrouter(create).chat(request())) == llm.LLM_EMPTY_RESPONSE_MESSAGE
 
 
 def test_empty_reply_with_stop_is_not_blamed_on_the_budget(caplog):
-    create = FakeCreate(chat_response("", "stop", completion_tokens=0, reasoning_tokens=0))
-    assert make_openrouter(create).chat(PROMPT) == ""
+    create = FakeCreate(chat_response(None, "stop", completion_tokens=0, reasoning_tokens=0))
+    assert make_openrouter(create).chat(request()).calls == []
     assert swallowed_errors(caplog) == []
 
 
 def test_openai_empty_reply_out_of_budget_is_explained():
-    create = FakeCreate(responses_response("", "incomplete", "max_output_tokens"))
-    assert sent_text(make_openai(create).chat(PROMPT, max_tokens=120)) == llm.LLM_EMPTY_RESPONSE_MESSAGE
+    create = FakeCreate(responses_response(None, "incomplete", "max_output_tokens"))
+    assert sent_text(make_openai(create).chat(request(max_tokens=120))) == llm.LLM_EMPTY_RESPONSE_MESSAGE
 
 
 def test_openai_empty_reply_without_incomplete_reason_returns_empty(caplog):
-    create = FakeCreate(responses_response("", "completed", output_tokens=0, reasoning_tokens=0))
-    assert make_openai(create).chat(PROMPT) == ""
+    create = FakeCreate(responses_response(None, "completed", output_tokens=0, reasoning_tokens=0))
+    assert make_openai(create).chat(request()).calls == []
     assert swallowed_errors(caplog) == []
 
 
 def test_asione_empty_reply_out_of_budget_is_explained():
-    create = FakeCreate(chat_response("", "length"))
-    assert sent_text(make_asione(create).chat(PROMPT)) == llm.LLM_EMPTY_RESPONSE_MESSAGE
+    create = FakeCreate(chat_response(None, "length"))
+    assert sent_text(make_asione(create).chat(request())) == llm.LLM_EMPTY_RESPONSE_MESSAGE
 
 
 @pytest.mark.parametrize("effort, max_tokens, want_budget, want_enabled", [
@@ -163,8 +196,8 @@ def test_asione_empty_reply_out_of_budget_is_explained():
     ("none", 6000, 0, False),
 ])
 def test_asione_reasoning_budget(effort, max_tokens, want_budget, want_enabled):
-    create = FakeCreate(chat_response('(send "hi")', "stop", completion_tokens=40, reasoning_tokens=30))
-    make_asione(create).chat(PROMPT, max_tokens=max_tokens, reasoning=effort)
+    create = FakeCreate(chat_response("hi", "stop", completion_tokens=40, reasoning_tokens=30))
+    make_asione(create).chat(request(max_tokens=max_tokens, reasoning=effort))
     body = create.calls[0]["extra_body"]
     assert body["thinking_budget"] == want_budget
     assert body["enable_thinking"] is want_enabled
@@ -175,15 +208,15 @@ def test_asione_reasoning_budget(effort, max_tokens, want_budget, want_enabled):
     ("none", {"enabled": False, "effort": "none", "exclude": True}),
 ])
 def test_openrouter_reasoning_body(effort, want):
-    create = FakeCreate(chat_response('(send "hi")', "stop", completion_tokens=40, reasoning_tokens=30))
-    make_openrouter(create).chat(PROMPT, reasoning=effort)
+    create = FakeCreate(chat_response("hi", "stop", completion_tokens=40, reasoning_tokens=30))
+    make_openrouter(create).chat(request(reasoning=effort))
     assert create.calls[0]["extra_body"]["reasoning"] == want
 
 
 def test_usage_is_logged_at_info(caplog):
     caplog.set_level(logging.INFO)
-    create = FakeCreate(chat_response('(send "hi")', "stop", completion_tokens=40, reasoning_tokens=30))
-    make_openrouter(create).chat(PROMPT)
+    create = FakeCreate(chat_response("hi", "stop", completion_tokens=40, reasoning_tokens=30))
+    make_openrouter(create).chat(request())
     usage = [r for r in caplog.records if "[LLM_USAGE]" in r.getMessage()]
     assert usage and all(r.levelno == logging.INFO for r in usage)
     assert "finish_reason=stop" in usage[0].getMessage()
@@ -191,12 +224,14 @@ def test_usage_is_logged_at_info(caplog):
 
 def test_openai_usage_is_logged_at_info(caplog):
     caplog.set_level(logging.INFO)
-    create = FakeCreate(responses_response('(send "hi")', "completed", output_tokens=40, reasoning_tokens=30))
-    make_openai(create).chat(PROMPT)
+    create = FakeCreate(responses_response("hi", "completed", output_tokens=40, reasoning_tokens=30))
+    make_openai(create).chat(request())
     usage = [r for r in caplog.records if "[LLM_USAGE]" in r.getMessage()]
     assert usage and all(r.levelno == logging.INFO for r in usage)
 
 
-def test_api_error_returns_empty_string():
+def test_api_error_returns_structured_error():
     create = FakeCreate(RuntimeError("401 invalid api key"))
-    assert make_openrouter(create).chat(PROMPT) == ""
+    response = make_openrouter(create).chat(request())
+    assert response.calls == []
+    assert "401 invalid api key" in response.error
