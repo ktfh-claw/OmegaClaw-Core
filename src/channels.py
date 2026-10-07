@@ -4,6 +4,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 _commChannelRegistry = {}
+_NO_CHANNEL_INPUT = "__OMEGA_NO_CHANNEL_INPUT__"
 
 
 def _authenticated_export_principal() -> str | None:
@@ -96,10 +97,39 @@ def commChannelStart(commchannel):
 def commChannelReceive():
     """Receive message from selected communication channel"""
     global _commchannel
-    messages = _commchannel.receive().split(" | ")
+    try:
+        received = _commchannel.receive()
+    except Exception:
+        logger.exception("Communication channel receive failed; treating it as no input")
+        return ""
+
+    if not isinstance(received, str):
+        logger.warning(
+            "Communication channel receive returned %s instead of str; treating it as no input",
+            type(received).__name__,
+        )
+        return ""
+
+    messages = received.split(" | ")
     return " | ".join(
         message for message in messages if not handle_control_message(message)
     )
+
+
+def commChannelReceiveForLoop():
+    """Return a non-empty, ground string for the MeTTa polling loop.
+
+    PeTTa's ``repr`` reduction can leave its result unbound for an empty Python
+    string.  Keep the public channel API's empty-string semantics while using a
+    stable sentinel at the Python/MeTTa boundary.
+    """
+    message = commChannelReceive()
+    return message if message else _NO_CHANNEL_INPUT
+
+
+def loopMessageIsNew(message, previous):
+    """Return a concrete bool without exposing MeTTa to partial comparisons."""
+    return message != _NO_CHANNEL_INPUT and message != previous
 
 def commChannelSend(message):
     """Send message via selected communication channel"""

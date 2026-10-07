@@ -18,7 +18,7 @@
 
 ;Receive the latest user message considering all communication channels:
 (= (receive)
-   (commChannelReceive))
+   (py-call (channels.commChannelReceiveForLoop)))
 
 ;Send a message to all communication channels:
 !(change-state! &lastsend "")

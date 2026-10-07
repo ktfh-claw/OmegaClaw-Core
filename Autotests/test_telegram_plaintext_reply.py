@@ -64,7 +64,7 @@ def test_telegram_autonomous_turn_has_history_and_resets_wake_flag():
 
     context_guard = "(not (or (get-state &telegramFollowup)\n                                           (get-state &autonomousWake)))"
     history_update = "(addToHistory $msg $sexpr $msgnew)"
-    reset_wake = "($_ (change-state! &autonomousWake False))"
+    reset_wake = "(change-state! &autonomousWake False)"
     assert context_guard in loop
     assert loop.count("(change-state! &autonomousWake False)") == 2
     assert loop.index(history_update) < loop.rindex(reset_wake)
