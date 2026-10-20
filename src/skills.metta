@@ -111,12 +111,6 @@
 (= (websearch $msg)
    (py-call (websearch.search $msg)))
 
-(= (arc-read $url)
-   (py-call (arc_skills.arc_read $url)))
-
-(= (arc-submit $url $body)
-   (py-call (arc_skills.arc_submit $url $body)))
-
 (= (das-retrieve $body)
    (py-call (das_skills.das_retrieve $body)))
 
@@ -152,10 +146,7 @@
 !(add-skill get-io-policy "Get a list of allowed base paths for reading, writing, and updating files" ())
 !(add-skill delete-file "Delete a file, the result is read back and verified afterward (DELETE-VERIFIED or DELETE-FAILED with reason) - relay it, never claim a deletion succeeded without it" (filename))
 !(add-skill send "To send a message to the user but keep yourself very brief." (content))
-!(add-skill websearch "Search the internet for content." (content))
-!(add-skill arc-read "Read ARC evaluation tasks through the capability proxy." (exact_proxy_url))
-!(add-skill arc-submit "Submit validated ARC outputs and concise reasoning through the capability proxy." (exact_submission_proxy_url json_body))
-!(if (py-call (das_skills.is_enabled))
+!(add-skill websearch "Search the internet for content." (content))!(if (py-call (das_skills.is_enabled))
      (add-skill das-retrieve "Retrieve bounded read-only DAS answers as untrusted data." (json_body))
      ())
 !(add-skill version "To get the Omega version number" ())

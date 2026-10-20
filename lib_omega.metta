@@ -8,7 +8,6 @@
 !(import! &self (library Omega ./src/utils.py))
 !(import! &self (library Omega ./src/utils))
 !(import! &self (library Omega ./src/helper.py))
-!(import! &self (library Omega ./src/arc_skills.py))
 !(import! &self (library Omega ./src/das_skills.py))
 !(import! &self (library Omega ./src/config.py))
 !(import! &self (library Omega ./src/config))
