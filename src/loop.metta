@@ -116,48 +116,41 @@
                             (if (and (> (get-state &loops) 0)
                                      (or (!= (commchannel) telegram)
                                          (telegramInferenceReady $msgnew)))
-                                (let $lastmessage
-                                     (if $msgnew $msg "[NO NEW USER INPUT. CONTINUE AUTONOMOUS WORK. DO NOT REPEAT THE PREVIOUS RESPONSE. ONLY USE send FOR GENUINELY NEW INFORMATION OR WHEN USER INPUT IS NEEDED.]")
-                                  (progn
-                                    (change-state! &nextWakeAt (+ (get_time) (wakeupInterval)))
-                                    (log INFO "loop" $lastmessage)
-                                    (let $system (llmRequestMessage role "system" content $prompt)
-                                      (progn
-                                        (messagesAppend (llmRequestMessage role "user" content $lastmessage))
-                                        (let $request (llmRequest $system (messagesGet) (maxOutputToken) (reasoningMode) (collectTools))
-                                          (progn
-                                            (log INFO "loop" (REQUEST: (py-str ($request))))
-                                            (let $response (llmProviderChat $request)
-                                              (progn
-                                                (if (== (commchannel) telegram)
-                                                    (change-state! &telegramFollowup
-                                                        (llmResponseNeedsFollowup $response))
-                                                    _)
-                                                (log INFO "loop" (RESPONSE: (py-str ($response))))
-                                                (let $respstr (py-call (providers.llmResponseToSExpr $response))
-                                                  (let $resp (catch (sread $respstr))
-                                                    (progn
-                                                      (change-state! &error ())
-                                                      (log INFO "loop" (RESPONSE: $resp))
-                                                      (messagesClear)
-                                                      (messagesAppend (llmToolCallMessage role "assistant"
-                                                                                      calls (llmResponseCalls $response)
-                                                                                      content "[TOOL CALL]"))
-                                                      (let $sexpr (collapse
-                                                            (let ($callid $s) (superpose $resp)
-                                                              (let $result
-                                                                (if (HandleError $s $error) $error
-                                                                  (let $rc (catch (let $R (eval $s) (py-call (helper.normalize_string $R))))
-                                                                    (if (HandleError $rc $error) $error (strings-concat ("SUCCESS, RETURN: " $rc)))))
-                                                                (progn
-                                                                  (log INFO "loop" (COMMAND_RETURN: ($s $result)))
-                                                                  (messagesAppend (llmToolCallResponseMessage role "tool" callid $callid content (last_chars $result (maxFeedback))))
-                                                                  (quote $s))))))
-                                                        (progn
-                                                          (if (or $msgnew (not (== $sexpr ())))
-                                                              (addToHistory $msg $sexpr $msgnew) _)
-                                                          (change-state! &autonomousWake False)
-                                                          True))))))))))))
+                                (let* (($lastmessage (if $msgnew $msg "[NO NEW USER INPUT. CONTINUE AUTONOMOUS WORK. DO NOT REPEAT THE PREVIOUS RESPONSE. ONLY USE send FOR GENUINELY NEW INFORMATION OR WHEN USER INPUT IS NEEDED.]"))
+                                       ($_ (change-state! &nextWakeAt (+ (get_time) (wakeupInterval))))
+                                       ($_ (log INFO "loop" $lastmessage))
+                                       ($system (llmRequestMessage role "system" content $prompt))
+                                       ($_ (messagesAppend (llmRequestMessage role "user" content $lastmessage)))
+                                       ($request (llmRequest $system (messagesGet) (maxOutputToken) (reasoningMode) (collectTools)))
+                                       ($_ (log INFO "loop" (REQUEST: (py-str ($request)))))
+                                       ($response (llmProviderChat $request))
+                                       ($_ (if (== (commchannel) telegram)
+                                               (change-state! &telegramFollowup (llmResponseNeedsFollowup $response))
+                                               _))
+                                       ($_ (log INFO "loop" (RESPONSE: (py-str ($response)))))
+                                       ($respstr (py-call (providers.llmResponseToSExpr $response)))
+                                       ($resp (catch (sread $respstr)))
+                                       ($_ (log INFO "loop" (RESPONSE: $resp)))
+                                       ($_ (change-state! &error ()))
+                                       ($_ (messagesClear))
+                                       ($sexpr (if (HandleError (quote $resp) $error)
+                                                 $error
+                                                 (progn (messagesAppend (llmToolCallMessage role "assistant"
+                                                                                           calls (llmResponseCalls $response)
+                                                                                           content "[TOOL CALL]"))
+                                                   (collapse
+                                                         (let ($callid $s) (superpose $resp)
+                                                           (let $result
+                                                             (if (HandleError (quote $s) $error) $error
+                                                               (let $rc (catch (let $R (collapse (eval $s)) (py-call (helper.normalize_string $R))))
+                                                                 (if (HandleError $rc $error) $error (strings-concat ("SUCCESS, RETURN: " $rc)))))
+                                                             (progn
+                                                               ($_ (log INFO "loop" (COMMAND_RETURN: ((quote $s) $result))))
+                                                               (messagesAppend (llmToolCallResponseMessage role "tool" callid $callid content (last_chars $result (maxFeedback))))
+                                                               (quote $s)))))))))
+                                       ($_ (if (or $msgnew (not (== $sexpr ())))
+                                               (addToHistory $msg $sexpr $msgnew) _))
+                                       ($_ (change-state! &autonomousWake False)))
                                 (if (> (get_time) (get-state &nextWakeAt))
                                     (let $_ (change-state! &loops (+ 1 (maxWakeLoops)))
                                          (if (and (== (commchannel) telegram)

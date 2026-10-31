@@ -36,6 +36,8 @@ http {
             proxy_ssl_server_name on;
             proxy_ssl_protocols TLSv1.2 TLSv1.3;
             proxy_http_version 1.1;
+            proxy_read_timeout 600s;
+            proxy_send_timeout 600s;
         }
 
         location /asicloud/ {
@@ -46,6 +48,8 @@ http {
             proxy_ssl_server_name on;
             proxy_ssl_protocols TLSv1.2 TLSv1.3;
             proxy_http_version 1.1;
+            proxy_read_timeout 600s;
+            proxy_send_timeout 600s;
         }
 
         location /openai/ {
@@ -56,6 +60,8 @@ http {
             proxy_ssl_server_name on;
             proxy_ssl_protocols TLSv1.2 TLSv1.3;
             proxy_http_version 1.1;
+            proxy_read_timeout 600s;
+            proxy_send_timeout 600s;
         }
 
         location /asione/ {
@@ -66,6 +72,8 @@ http {
             proxy_ssl_server_name on;
             proxy_ssl_protocols TLSv1.2 TLSv1.3;
             proxy_http_version 1.1;
+            proxy_read_timeout 600s;
+            proxy_send_timeout 600s;
         }
 
         location /openaiapi/ {
@@ -75,6 +83,8 @@ http {
             proxy_ssl_server_name on;
             proxy_ssl_protocols TLSv1.2 TLSv1.3;
             proxy_http_version 1.1;
+            proxy_read_timeout 600s;
+            proxy_send_timeout 600s;
         }
 
         # OpenClaw Gateway: inject Bearer token, upstream is set at container
@@ -98,6 +108,8 @@ http {
             proxy_ssl_server_name on;
             proxy_ssl_protocols TLSv1.2 TLSv1.3;
             proxy_http_version 1.1;
+            proxy_read_timeout 600s;
+            proxy_send_timeout 600s;
         }
 
         # Telegram: rewrite URL to inject bot token in path.

@@ -132,12 +132,13 @@ class OpenAIProviderImpl(llm.AIProvider):
             incomplete_details = getattr(raw, "incomplete_details", None)
             incomplete_reason = getattr(incomplete_details, "reason", None)
             if incomplete_reason == "max_output_tokens":
-                response.add_tool_call(llm._llm_empty_response_tool_call(raw.id))
+                response.add_tool_call(llm._llm_empty_response_tool_call())
 
         return response
 
     def chat(self, request: LLMRequest) -> LLMResponse:
         """Send chat request, initializing client if needed."""
+        self._start_of_turn(request)
         self._ensure_client()
 
         if self._client is None:
@@ -146,10 +147,12 @@ class OpenAIProviderImpl(llm.AIProvider):
         try:
             raw_request = self.convert_request(request)
             llm._log_raw("LLM_RAW_REQUEST", self._name, self._model_name, raw_request)
-            raw_response = self._client.responses.create(**raw_request)
+            raw_response = llm._retrying(lambda: self._client.responses.create(**raw_request), self._name)
             llm._log_raw("LLM_RAW_RESPONSE", self._name, self._model_name, raw_response)
             return self.convert_response(raw_response)
         except Exception as e:
             error = f"Exception while communicating with LLM: {e}"
-            logger.exception(f"[AIProvider.chat]: {error}")
+            logger.exception(f"[OpenAIProviderImpl.chat]: {error}")
+            if llm._is_timeout_error(e):
+                return self._timeout_reply()
             return LLMResponse().with_error(error)

@@ -4,6 +4,7 @@ test_fileio_verified_writes.py: the module is loaded by file path.
 """
 import datetime
 import importlib.util
+import json
 import os
 import sys
 

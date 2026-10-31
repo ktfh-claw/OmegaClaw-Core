@@ -1,6 +1,7 @@
 import config
 import logging
 from typing import List
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -193,6 +194,9 @@ class LLMResponse:
         self.error = error
         return self
 
+    def is_error(self):
+        return bool(self.error)
+
     def __repr__(self):
         return f"LLMResponse[calls={self.calls!r},error={self.error!r}]"
 
@@ -249,6 +253,9 @@ def llmProviderChat(request):
         return LLMResponse()
 
 def _validate_response(request: LLMRequest, response: LLMResponse) -> LLMResponse:
+    if not response.calls and not response.is_error():
+        return response.with_error("List of tool calls is empty")
+
     for call in response.calls:
         if call.is_error():
             continue
@@ -259,6 +266,9 @@ def _validate_response(request: LLMRequest, response: LLMResponse) -> LLMRespons
         for parameter in call.tool.parameters:
             if not parameter.name in call.arguments:
                 call.set_error(f"Call tool parameter is not set: tool: {call.name!r}, parameter: {parameter.name!r}")
+                break
+            if not isinstance(call.arguments[parameter.name], str):
+                call.set_error(f"Call tool parameter is not a string: tool: {call.name!r}, parameter: {parameter.name!r}")
                 break
     return response
 
@@ -302,7 +312,7 @@ def llmResponseNeedsFollowup(response: LLMResponse):
     return any(call.name != "send" for call in response.calls)
 
 def llmResponseIsError(response: LLMResponse):
-    return bool(response.error)
+    return response.is_error()
 
 def llmResponseGetError(response: LLMResponse):
     return response.error
@@ -334,16 +344,21 @@ def llmToolCallToSExpr(call: LLMToolCall):
                 sexpr = sexpr + f"\"{arg}\" "
     else:
         for arg in call.arguments.values():
+            if not isinstance(arg, str):
+                arg = json.dumps(arg, ensure_ascii=False)
             arg = arg.translate(ESCAPE)
             sexpr = sexpr + f"\"{arg}\" "
 
     sexpr = sexpr[:-1] + ")"
     if call.is_error():
-        sexpr = f"(Error {sexpr} \"{call.error}\")"
+        sexpr = f"(Error {sexpr} \"{str(call.error).translate(ESCAPE)}\")"
     return f"({call.id} {sexpr})"
 
 def llmResponseToSExpr(response: LLMResponse) -> str:
-    sexpr = "("
-    for call in response.calls:
-        sexpr = sexpr + llmToolCallToSExpr(call)
-    return sexpr + ")"
+    if response.is_error():
+        return f"(Error () \"{str(response.error).translate(ESCAPE)}\")"
+    else:
+        sexpr = "("
+        for call in response.calls:
+            sexpr = sexpr + llmToolCallToSExpr(call)
+        return sexpr + ")"
